@@ -1,0 +1,97 @@
+# PIPELINE DEFINITION
+# Name: read-and-add-input-data-to-file
+# Inputs:
+#    input_data_path: system.Artifact
+# Outputs:
+#    results_data_path: system.Artifact
+components:
+  comp-read-and-add-input-data-to-file:
+    executorLabel: exec-read-and-add-input-data-to-file
+    inputDefinitions:
+      artifacts:
+        input_data_path:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+          description: Input path to sample data
+    outputDefinitions:
+      artifacts:
+        results_data_path:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-read-and-add-input-data-to-file:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - read_and_add_input_data_to_file
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet     --no-warn-script-location 'kfp==2.0.1'\
+          \ && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          python3 -m kfp.components.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef read_and_add_input_data_to_file(\n    input_data_path:  dsl.InputPath(\"\
+          TestData\"),\n    results_data_path: dsl.OutputPath(\"TestData\"),\n) ->\
+          \ None:\n  \"\"\"Writes input data to a file.\n\n  Args:\n      input_data_path:\
+          \ Input path to sample data\n      output_data_path: Output path for the\
+          \ string data\n  \"\"\"\n  import tensorflow as tf\n\n  def read_from_file(input_path):\n\
+          \    with tf.io.gfile.GFile(input_path, \"r\") as f1:\n        data = f1.read()\n\
+          \    return data\n\n  def write_to_file(results_path, data):\n    \"\"\"\
+          Creates output file at path specified, writes data.\"\"\"\n    with tf.io.gfile.GFile(results_path,\
+          \ \"w\") as f:\n        f.write(data)\n        f.write(\"some additional\
+          \ data\")\n\n  data = read_from_file(input_data_path)\n  write_to_file(results_data_path,\
+          \ data)\n\n"
+        image: tensorflow/tensorflow:2.8.0
+pipelineInfo:
+  name: read-and-add-input-data-to-file
+root:
+  dag:
+    outputs:
+      artifacts:
+        results_data_path:
+          artifactSelectors:
+          - outputArtifactKey: results_data_path
+            producerSubtask: read-and-add-input-data-to-file
+    tasks:
+      read-and-add-input-data-to-file:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-read-and-add-input-data-to-file
+        inputs:
+          artifacts:
+            input_data_path:
+              componentInputArtifact: input_data_path
+        taskInfo:
+          name: read-and-add-input-data-to-file
+  inputDefinitions:
+    artifacts:
+      input_data_path:
+        artifactType:
+          schemaTitle: system.Artifact
+          schemaVersion: 0.0.1
+        description: Input path to sample data
+  outputDefinitions:
+    artifacts:
+      results_data_path:
+        artifactType:
+          schemaTitle: system.Artifact
+          schemaVersion: 0.0.1
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.0.1
